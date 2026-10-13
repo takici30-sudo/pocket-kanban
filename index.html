@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A small, dependency-free Kanban board with browser-local storage.">
+  <title>Pocket Kanban</title>
+  <style>
+    :root { color-scheme: dark; --bg: #17201d; --panel: #202c26; --card: #2b3830; --ink: #edf2e8; --muted: #b4c3b7; --line: #3b4b40; --accent: #d0ed9c; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 "Trebuchet MS", sans-serif; }
+    button, input, select { font: inherit; }
+    button, select { cursor: pointer; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+    button { border: 1px solid var(--line); border-radius: 7px; padding: 9px 16px; color: var(--ink); background: var(--card); }
+    button:hover { border-color: var(--accent); }
+    button:disabled { cursor: default; opacity: .6; }
+    .wrap { max-width: 1220px; padding: 36px; margin: auto; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 24px; border-bottom: 1px solid var(--line); padding-bottom: 22px; }
+    .brand { font: bold 20px/1.2 "Trebuchet MS", sans-serif; letter-spacing: -.6px; }
+    .brand span { color: var(--accent); }
+    .local { color: var(--muted); font-size: 12px; }
+    .intro { margin: 48px 0 32px; }
+    .eyebrow { color: var(--accent); font: 11px monospace; text-transform: uppercase; letter-spacing: .14em; }
+    h1 { font: normal clamp(38px, 5vw, 64px)/1.05 Palatino, Georgia, serif; letter-spacing: -.035em; margin: 14px 0; }
+    .intro p { color: var(--muted); margin: 0; }
+    form { display: flex; gap: 12px; margin: 26px 0 10px; }
+    label[for="title"] { display: block; color: var(--muted); font-size: 13px; }
+    input { width: 100%; min-width: 0; border: 1px solid var(--line); background: var(--panel); border-radius: 7px; padding: 13px 16px; color: var(--ink); }
+    input::placeholder { color: var(--muted); }
+    .primary { background: var(--accent); color: var(--bg); border-color: var(--accent); white-space: nowrap; font-weight: bold; }
+    #message { min-height: 25px; color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+    .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .column { border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 20px; min-height: 350px; }
+    .column h2 { display: flex; align-items: center; gap: 10px; font-size: 14px; margin: 0 0 20px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #a9b6c0; }
+    #doing .dot { background: #eac786; }
+    #done .dot { background: var(--accent); }
+    .count { margin-left: auto; color: var(--muted); font: 12px monospace; }
+    .task { border: 1px solid var(--line); padding: 16px; border-radius: 8px; background: var(--card); margin: 12px 0; }
+    .task h3 { font-size: 15px; font-weight: normal; margin: 0 0 20px; overflow-wrap: anywhere; }
+    .actions { display: flex; gap: 8px; justify-content: space-between; }
+    select { min-width: 0; border: 1px solid var(--line); border-radius: 5px; padding: 6px; background: var(--panel); color: var(--ink); font-size: 12px; }
+    .delete { padding: 5px 9px; color: #e7b4a4; font-size: 12px; background: transparent; }
+    .empty { border: 1px dashed var(--line); border-radius: 8px; padding: 26px 12px; text-align: center; color: var(--muted); font-size: 13px; }
+    footer { color: var(--muted); font-size: 12px; display: flex; justify-content: space-between; gap: 18px; padding-top: 26px; }
+    footer a { color: inherit; text-underline-offset: 4px; }
+    @media (max-width: 760px) { .wrap { padding: 22px; } .board { grid-template-columns: 1fr; } .column { min-height: 180px; } header, footer { flex-wrap: wrap; } .intro { margin-top: 32px; } }
+    @media (max-width: 420px) { form { flex-wrap: wrap; } .primary { width: 100%; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header><div class="brand"><span aria-hidden="true">▦</span> Pocket Kanban</div><span class="local">Your browser. Your workspace.</span></header>
+    <main>
+      <section class="intro"><div class="eyebrow">A little less chaos</div><h1>Make room for progress.</h1><p>Capture a task. Choose the next step. Keep things moving.</p></section>
+      <label for="title">New task</label>
+      <form id="add-form"><input id="title" name="title" placeholder="What would you like to get done?" maxlength="120" required autocomplete="off"><button class="primary" type="submit">Add task +</button></form>
+      <p id="message" role="status" aria-live="polite"></p>
+      <div class="board" aria-label="Task board">
+        <section id="todo" class="column" aria-labelledby="todo-heading"><h2 id="todo-heading"><span class="dot" aria-hidden="true"></span>To do <span class="count"></span></h2><div class="cards"></div></section>
+        <section id="doing" class="column" aria-labelledby="doing-heading"><h2 id="doing-heading"><span class="dot" aria-hidden="true"></span>In progress <span class="count"></span></h2><div class="cards"></div></section>
+        <section id="done" class="column" aria-labelledby="done-heading"><h2 id="done-heading"><span class="dot" aria-hidden="true"></span>Done <span class="count"></span></h2><div class="cards"></div></section>
+      </div>
+    </main>
+    <footer><span>Saved locally when browser storage is available.</span><a href="https://github.com/takici30-sudo/pocket-kanban">View source</a></footer>
+  </div>
+  <script>
+    const storageKey = 'pocket-kanban.tasks.v1';
+    const stages = { todo: 'To do', doing: 'In progress', done: 'Done' };
+    const message = document.querySelector('#message');
+    const titleInput = document.querySelector('#title');
+    let tasks = [
+      { id: 'sample-1', title: 'Make this workspace your own', stage: 'todo' },
+      { id: 'sample-2', title: 'Try moving a task to another column', stage: 'doing' },
+      { id: 'sample-3', title: 'Open your first Kanban board', stage: 'done' }
+    ];
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored !== null) {
+        const parsed = JSON.parse(stored);
+        if (!Array.isArray(parsed) || parsed.some(task => !task || typeof task.id !== 'string' || typeof task.title !== 'string' || !Object.hasOwn(stages, task.stage)) || new Set(parsed.map(task => task.id)).size !== parsed.length) throw new Error('Invalid saved tasks');
+        tasks = parsed;
+      }
+    } catch {
+      message.textContent = 'Saved tasks could not be loaded. Sample tasks are shown; browser storage was not changed.';
+    }
+    function save() {
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(tasks));
+        message.textContent = 'Saved on this device.';
+      } catch {
+        message.textContent = 'Changes are available in this tab only. Browser storage is unavailable or full.';
+      }
+    }
+    function render() {
+      for (const [stage, label] of Object.entries(stages)) {
+        const column = document.querySelector('#' + stage);
+        const cards = column.querySelector('.cards');
+        const items = tasks.filter(task => task.stage === stage);
+        column.querySelector('.count').textContent = items.length;
+        cards.replaceChildren();
+        if (!items.length) {
+          const empty = document.createElement('p');
+          empty.className = 'empty';
+          empty.textContent = stage === 'done' ? 'Small wins go here.' : 'A little breathing room.';
+          cards.append(empty);
+        }
+        for (const task of items) {
+          const card = document.createElement('article');
+          card.className = 'task';
+          const heading = document.createElement('h3');
+          heading.textContent = task.title;
+          const actions = document.createElement('div');
+          actions.className = 'actions';
+          const select = document.createElement('select');
+          select.setAttribute('aria-label', 'Move task: ' + task.title);
+          for (const [value, text] of Object.entries(stages)) select.add(new Option(text, value));
+          select.value = stage;
+          select.addEventListener('change', () => {
+            task.stage = select.value;
+            save(); render();
+            Array.from(document.querySelectorAll('select')).find(item => item.dataset.task === task.id)?.focus();
+          });
+          select.dataset.task = task.id;
+          const remove = document.createElement('button');
+          remove.type = 'button'; remove.className = 'delete'; remove.textContent = 'Delete';
+          remove.setAttribute('aria-label', 'Delete task: ' + task.title);
+          remove.addEventListener('click', () => { tasks = tasks.filter(item => item.id !== task.id); save(); render(); titleInput.focus(); });
+          actions.append(select, remove); card.append(heading, actions); cards.append(card);
+        }
+      }
+    }
+    document.querySelector('#add-form').addEventListener('submit', event => {
+      event.preventDefault();
+      const title = titleInput.value.trim();
+      if (!title) { message.textContent = 'Please enter a task title.'; titleInput.focus(); return; }
+      tasks.push({ id: 'task-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2), title, stage: 'todo' });
+      save(); render(); titleInput.value = ''; titleInput.focus();
+    });
+    render();
+  </script>
+</body>
+</html>
